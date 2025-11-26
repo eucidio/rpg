@@ -214,16 +214,13 @@
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
 
-  // --- Musik laden (ruhige Hintergrundmusik) ---
-  // Lege eine Datei "musik.mp3" in den gleichen Ordner wie diese HTML-Datei.
+  // --- Musik laden (Abenteuer-Musik) ---
+  // Lege die Datei "musik.mp3" in den gleichen Ordner wie diese HTML-Datei.
   const musik = new Audio("musik.mp3");
-  musik.loop = true;     // Musik wiederholt sich
-  musik.volume = 0.4;    // Lautstärke (0 bis 1)
-
-  // Auf vielen Handys darf Musik erst nach einer Berührung starten:
-  document.body.addEventListener("click", () => {
-    if (musik.paused) musik.play();
-  });
+  musik.loop = true;
+  musik.volume = 0.4;
+  // WICHTIG: Kein document.body-Click-Autostart,
+  // damit Musik aus/an-Buttons richtig funktionieren.
 
   const punkteAnzeige = document.getElementById("punkteAnzeige");
   const bereichAnzeige = document.getElementById("bereichAnzeige");
