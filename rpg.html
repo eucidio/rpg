@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Herr Arruda – Reise des klugen Spielers</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #222;
+      color: #fff;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      margin: 10px 0 5px;
+    }
+
+    #gameContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    canvas {
+      border: 2px solid #fff;
+      background: #000;
+      max-width: 100%;
+      touch-action: none; /* wichtig für Touch-Steuerung */
+    }
+
+    #hud {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 5px;
+    }
+
+    #hud span {
+      font-weight: bold;
+    }
+
+    #frageBox {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%;
+      max-width: 500px;
+      background: #ffffff;
+      color: #000;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.7);
+      z-index: 10;
+    }
+
+    #frageBox.versteckt {
+      display: none;
+    }
+
+    #antworten {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    #antworten button {
+      padding: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 1px solid #333;
+    }
+
+    #weiterButton {
+      margin-top: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+      background: #0066cc;
+      color: #fff;
+    }
+
+    #weiterButton.versteckt {
+      display: none;
+    }
+
+    /* Bereich für Bestenliste / „Planilha“ */
+    #scoreboard {
+      margin: 10px auto 20px;
+      max-width: 600px;
+      text-align: left;
+    }
+
+    #scoreboard h2 {
+      text-align: center;
+      margin-bottom: 5px;
+    }
+
+    #scoreboard input {
+      padding: 4px;
+      font-size: 14px;
+      width: 200px;
+      margin-right: 5px;
+    }
+
+    #scoreboard button {
+      padding: 5px 10px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+
+    #scoreTable {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    #scoreTable th,
+    #scoreTable td {
+      border: 1px solid #555;
+      padding: 4px 6px;
+      text-align: left;
+    }
+
+    #scoreTable th {
+      background: #444;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Herr Arruda – Reise des klugen Spielers</h1>
+
+<div id="gameContainer">
+  <canvas id="gameCanvas" width="800" height="450"></canvas>
+
+  <div id="hud">
+    <span id="punkteAnzeige">Punkte: 0</span>
+    <span id="bereichAnzeige"></span>
+  </div>
+</div>
+
+<!-- Bereich zum Speichern der Punkte (Planilha) -->
+<div id="scoreboard">
+  <h2>Bestenliste</h2>
+  <p>
+    Name des Spielers:
+    <input id="nameInput" type="text" placeholder="Name eingeben" />
+    <button id="saveScoreBtn">Punkte speichern</button>
+    <button id="downloadCsvBtn">Als CSV herunterladen</button>
+  </p>
+  <table id="scoreTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th>Punkte</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <p style="font-size:12px; color:#ccc;">
+    Tipp: Die CSV-Datei kann in Excel oder Google Tabellen geöffnet werden.
+  </p>
+</div>
+
+<!-- Fragen-Fenster -->
+<div id="frageBox" class="versteckt">
+  <h2 id="npcName">Figur</h2>
+  <p id="frageText">Frage …</p>
+  <div id="antworten"></div>
+  <p id="erklaerung"></p>
+  <button id="weiterButton" class="versteckt">Weiter</button>
+</div>
+
+<script>
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+
+  const punkteAnzeige = document.getElementById("punkteAnzeige");
+  const bereichAnzeige = document.getElementById("bereichAnzeige");
+  const frageBox = document.getElementById("frageBox");
+  const npcNameEl = document.getElementById("npcName");
+  const frageTextEl = document.getElementById("frageText");
+  const antwortenDiv = document.getElementById("antworten");
+  const erklaerungEl = document.getElementById("erklaerung");
+  const weiterButton = document.getElementById("weiterButton");
+
+  const nameInput = document.getElementById("nameInput");
+  const saveScoreBtn = document.getElementById("saveScoreBtn");
+  const downloadCsvBtn = document.getElementById("downloadCsvBtn");
+  const scoreTableBody = document.querySelector("#scoreTable tbody");
+
+  // --- BILDER LADEN ---
+  const hintergrundImg = new Image();
+  hintergrundImg.src = "karte.png";
+
+  const spielerImg = new Image();
+  spielerImg.src = "spieler.png";
+
+  const npcAltImg = new Image();
+  npcAltImg.src = "npc_alt.png";
+
+  const npcOnlineImg = new Image();
+  npcOnlineImg.src = "npc_online.png";
+
+  const npcZeitImg = new Image();
+  npcZeitImg.src = "npc_zeit.png";
+
+  const npcMeisterImg = new Image();
+  npcMeisterImg.src = "npc_meister.png";
+
+  // --- SPIELER (größer + Zielposition für Touch) ---
+  const spieler = {
+    x: 400,
+    y: 400,
+    radius: 24,
+    speed: 3,
+    zielX: 400,
+    zielY: 400
+  };
+
+  // --- BEREICH TEXT ---
+  function aktuellerBereichName(x, y) {
+    if (y < canvas.height / 2 && x < canvas.width / 2) return "Gebiet: 8-Bit-Wald (alte Spiele)";
+    if (y < canvas.height / 2 && x >= canvas.width / 2) return "Gebiet: Online-Stadt (Sicherheit)";
+    if (y >= canvas.height / 2 && x < canvas.width / 2) return "Gebiet: Tal der Zeit (Balance)";
+    return "Gebiet: Schloss des klugen Spielers";
+  }
+
+  // --- NPCs ---
+  const npcs = [
+    {
+      id: 0,
+      name: "Hüter der alten Spiele",
+      x: 160,
+      y: 120,
+      img: npcAltImg,
+      questionIds: [0, 1, 2, 3],
+      currentIndex: 0,
+      completed: false
+    },
+    {
+      id: 1,
+      name: "Magischer Router",
+      x: 640,
+      y: 120,
+      img: npcOnlineImg,
+      questionIds: [4, 5, 6, 7],
+      currentIndex: 0,
+      completed: false
+    },
+    {
+      id: 2,
+      name: "Wächter der Zeit",
+      x: 160,
+      y: 340,
+      img: npcZeitImg,
+      questionIds: [8, 9, 10, 11],
+      currentIndex: 0,
+      completed: false
+    },
+    {
+      id: 3,
+      name: "Meister des klugen Spielers",
+      x: 640,
+      y: 340,
+      img: npcMeisterImg,
+      questionIds: [12, 13, 14, 15],
+      currentIndex: 0,
+      completed: false
+    }
+  ];
+
+  // --- FRAGEN (Deutsch, einfach / A2) ---
+  const fragen = [
+    // 1) Alte Spiele
+    {
+      id: 0,
+      text: "Wie haben Kinder früher Videospiele gespielt?",
+      options: [
+        "Immer mit Internet.",
+        "Mit Kassetten oder CDs, ohne Internet.",
+        "Nur mit dem Handy."
+      ],
+      correctIndex: 1,
+      explanation: "Früher brauchte man kein Internet. Man steckte eine Kassette ein und spielte."
+    },
+    {
+      id: 1,
+      text: "Warum waren alte Spiele oft sicherer?",
+      options: [
+        "Es gab keine Gefahren.",
+        "Es gab keinen Chat mit Fremden.",
+        "Das Spiel sprach mit dir."
+      ],
+      correctIndex: 1,
+      explanation: "Ohne Online-Chat konnten Fremde nicht mit dir schreiben."
+    },
+    {
+      id: 2,
+      text: "Wie spielten Kinder früher zusammen?",
+      options: [
+        "Jeder allein zu Hause, online.",
+        "Zusammen auf dem Sofa mit einem Gerät.",
+        "Nur über Video-Anruf."
+      ],
+      correctIndex: 1,
+      explanation: "Kinder saßen oft zusammen im Zimmer und spielten am gleichen Gerät."
+    },
+    {
+      id: 3,
+      text: "Was gab es früher fast nie in Spielen?",
+      options: [
+        "Level und Musik.",
+        "Chats und Käufe im Spiel.",
+        "Figuren."
+      ],
+      correctIndex: 1,
+      explanation: "Früher gab es kaum Online-Chats oder Einkäufe im Spiel."
+    },
+
+    // 2) Online-Sicherheit
+    {
+      id: 4,
+      text: "Ein Fremder im Spiel fragt nach Foto und Schule. Was machst du?",
+      options: [
+        "Ich schicke alles.",
+        "Ich schicke nichts und sage es einem Erwachsenen.",
+        "Ich schicke es für einen Preis."
+      ],
+      correctIndex: 1,
+      explanation: "Gib keine persönlichen Daten an Fremde. Sprich mit einem Erwachsenen."
+    },
+    {
+      id: 5,
+      text: "Welcher Spitzname ist sicher?",
+      options: [
+        "Mein voller Name und mein Alter.",
+        "Ein lustiger Name ohne private Infos.",
+        "Name von meiner Schule."
+      ],
+      correctIndex: 1,
+      explanation: "Ein sicherer Name zeigt nicht deinen echten Namen oder deine Schule."
+    },
+    {
+      id: 6,
+      text: "Ein Link sagt: „Klicke hier für gratis Münzen!“. Was machst du?",
+      options: [
+        "Klicken.",
+        "Nicht klicken und einem Erwachsenen sagen.",
+        "Einmal testen."
+      ],
+      correctIndex: 1,
+      explanation: "Solche Links können gefährlich sein. Nicht klicken!"
+    },
+    {
+      id: 7,
+      text: "Jemand beleidigt dich im Chat. Was ist gut?",
+      options: [
+        "Zurück beleidigen.",
+        "Blockieren, rausgehen und einem Erwachsenen sagen.",
+        "Gar nichts sagen."
+      ],
+      correctIndex: 1,
+      explanation: "Blockiere die Person und hol dir Hilfe bei einem Erwachsenen."
+    },
+
+    // 3) Zeit & Balance
+    {
+      id: 8,
+      text: "Du hast Hausaufgaben, draußen spielen und Videospiele. Was ist gut?",
+      options: [
+        "Nur spielen.",
+        "Mit einem Erwachsenen Zeiten planen.",
+        "Keine Hausaufgaben machen."
+      ],
+      correctIndex: 1,
+      explanation: "Mit einem Plan hast du Zeit für alles: Schule, Spielen und Familie."
+    },
+    {
+      id: 9,
+      text: "Ein Erwachsener sagt: „Noch 10 Minuten!“. Was machst du?",
+      options: [
+        "So tun, als höre ich nichts.",
+        "Schreien.",
+        "Die Runde fertig spielen und dann stoppen."
+      ],
+      correctIndex: 2,
+      explanation: "Ruhig bleiben und die Runde zu Ende spielen ist eine gute Lösung."
+    },
+    {
+      id: 10,
+      text: "Was ist ein Zeichen für zu viel Spielen?",
+      options: [
+        "Kopfschmerzen und Müdigkeit.",
+        "Gute Laune und alles okay.",
+        "Ich mag Videospiele."
+      ],
+      correctIndex: 0,
+      explanation: "Bei Kopfschmerzen oder Müdigkeit brauchst du eine Pause vom Bildschirm."
+    },
+    {
+      id: 11,
+      text: "Was ist eine gute Tages-Routine?",
+      options: [
+        "Bis sehr spät spielen.",
+        "Den ganzen Tag nur spielen.",
+        "Zeit für Schule, Familie, Spielen und Schlaf."
+      ],
+      correctIndex: 2,
+      explanation: "Ein kluger Spieler hat Zeit für viele Dinge, nicht nur Spiele."
+    },
+
+    // 4) Kluge Spieler
+    {
+      id: 12,
+      text: "Wer ist ein kluger Spieler?",
+      options: [
+        "Jemand, der nie stoppt.",
+        "Jemand, der Regeln und Sicherheit beachtet.",
+        "Jemand, der Passwörter teilt."
+      ],
+      correctIndex: 1,
+      explanation: "Ein kluger Spieler hat Spaß und bleibt sicher."
+    },
+    {
+      id: 13,
+      text: "Etwas im Spiel macht dir Angst. Was machst du?",
+      options: [
+        "Nichts sagen.",
+        "Rausgehen und einem Erwachsenen erzählen.",
+        "Weiter spielen."
+      ],
+      correctIndex: 1,
+      explanation: "Wenn etwas komisch ist, geh raus und sprich mit einem Erwachsenen."
+    },
+    {
+      id: 14,
+      text: "Ein Freund im Spiel möchte dein Passwort. Was machst du?",
+      options: [
+        "Ich gebe es.",
+        "Ich mache ein neues, leichtes Passwort.",
+        "Ich gebe es nie weiter."
+      ],
+      correctIndex: 2,
+      explanation: "Passwörter sind geheim. Du gibst sie niemandem."
+    },
+    {
+      id: 15,
+      text: "Welche Aussage ist richtig?",
+      options: [
+        "Im Internet ist alles sicher.",
+        "Internet hat gute und schlechte Dinge. Man muss vorsichtig sein.",
+        "Internet darf niemand benutzen."
+      ],
+      correctIndex: 1,
+      explanation: "Das Internet ist hilfreich, aber man braucht Regeln und Vorsicht."
+    }
+  ];
+
+  let punkte = 0;
+  let inFrage = false;
+  let aktuellerNPC = null;
+  let aktuelleFrage = null;
+  let spielAbgeschlossen = false;
+
+  const tasten = {};
+  document.addEventListener("keydown", (e) => { tasten[e.key] = true; });
+  document.addEventListener("keyup",  (e) => { tasten[e.key] = false; });
+
+  // --- TOUCH-Zielposition ---
+  function getTouchPos(evt) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = evt.touches[0];
+    const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+    return { x, y };
+  }
+
+  canvas.addEventListener("touchstart", (evt) => {
+    if (inFrage) return;
+    evt.preventDefault();
+    const pos = getTouchPos(evt);
+    spieler.zielX = pos.x;
+    spieler.zielY = pos.y;
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", (evt) => {
+    if (inFrage) return;
+    evt.preventDefault();
+    const pos = getTouchPos(evt);
+    spieler.zielX = pos.x;
+    spieler.zielY = pos.y;
+  }, { passive: false });
+
+  function begrenzeSpieler() {
+    if (spieler.x < spieler.radius) spieler.x = spieler.radius;
+    if (spieler.y < spieler.radius) spieler.y = spieler.radius;
+    if (spieler.x > canvas.width - spieler.radius) spieler.x = canvas.width - spieler.radius;
+    if (spieler.y > canvas.height - spieler.radius) spieler.y = canvas.height - spieler.radius;
+  }
+
+  function aktualisiereSpieler() {
+    if (inFrage) return;
+
+    // Pfeiltasten (für PC)
+    if (tasten["ArrowUp"])    spieler.y -= spieler.speed;
+    if (tasten["ArrowDown"])  spieler.y += spieler.speed;
+    if (tasten["ArrowLeft"])  spieler.x -= spieler.speed;
+    if (tasten["ArrowRight"]) spieler.x += spieler.speed;
+
+    // Bewegung zum Ziel (Touch)
+    let dx = spieler.zielX - spieler.x;
+    let dy = spieler.zielY - spieler.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > spieler.speed) {
+      dx /= dist;
+      dy /= dist;
+      spieler.x += dx * spieler.speed;
+      spieler.y += dy * spieler.speed;
+    }
+
+    begrenzeSpieler();
+  }
+
+  function dist(ax, ay, bx, by) {
+    const dx = ax - bx;
+    const dy = ay - by;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function pruefeNPCKontakt() {
+    if (inFrage) return;
+    for (const npc of npcs) {
+      if (npc.completed) continue;
+      const d = dist(spieler.x, spieler.y, npc.x, npc.y);
+      if (d < 40) {
+        oeffneFrage(npc);
+        break;
+      }
+    }
+  }
+
+  function oeffneFrage(npc) {
+    const idx = npc.currentIndex || 0;
+    if (idx >= npc.questionIds.length) {
+      npc.completed = true;
+      checkGameCompleted();
+      return;
+    }
+
+    const frageId = npc.questionIds[idx];
+    const f = fragen.find(q => q.id === frageId);
+
+    aktuellerNPC = npc;
+    aktuelleFrage = f;
+    inFrage = true;
+
+    npcNameEl.textContent = npc.name;
+    frageTextEl.textContent = f.text;
+    erklaerungEl.textContent = "";
+    weiterButton.classList.add("versteckt");
+    antwortenDiv.innerHTML = "";
+
+    f.options.forEach((opt, i) => {
+      const btn = document.createElement("button");
+      btn.textContent = opt;
+      btn.addEventListener("click", () => verarbeiteAntwort(i));
+      antwortenDiv.appendChild(btn);
+    });
+
+    frageBox.classList.remove("versteckt");
+  }
+
+  function verarbeiteAntwort(index) {
+    if (!aktuelleFrage || !aktuellerNPC) return;
+
+    const buttons = antwortenDiv.querySelectorAll("button");
+    buttons.forEach(b => b.disabled = true);
+
+    if (index === aktuelleFrage.correctIndex) {
+      punkte += 10;
+      punkteAnzeige.textContent = "Punkte: " + punkte;
+      erklaerungEl.textContent = "Super! Das ist genau richtig! " + aktuelleFrage.explanation;
+    } else {
+      erklaerungEl.textContent = "Das ist nicht richtig. " + aktuelleFrage.explanation;
+    }
+
+    aktuellerNPC.currentIndex = (aktuellerNPC.currentIndex || 0) + 1;
+    if (aktuellerNPC.currentIndex >= aktuellerNPC.questionIds.length) {
+      aktuellerNPC.completed = true;
+      checkGameCompleted();
+    }
+
+    weiterButton.classList.remove("versteckt");
+  }
+
+  weiterButton.addEventListener("click", () => {
+    frageBox.classList.add("versteckt");
+    inFrage = false;
+    aktuellerNPC = null;
+    aktuelleFrage = null;
+  });
+
+  function checkGameCompleted() {
+    if (!spielAbgeschlossen && npcs.every(n => n.completed)) {
+      spielAbgeschlossen = true;
+      alert("Toll gemacht! Du hast alle Fragen geschafft.\nGib unten deinen Namen ein und klicke auf „Punkte speichern“.");
+    }
+  }
+
+  function zeichneKarte() {
+    if (hintergrundImg.complete && hintergrundImg.naturalWidth > 0) {
+      ctx.drawImage(hintergrundImg, 0, 0, canvas.width, canvas.height);
+    } else {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.fillStyle = "#335d2d";
+      ctx.fillRect(0, 0, w/2, h/2);
+      ctx.fillStyle = "#1a3b5d";
+      ctx.fillRect(w/2, 0, w/2, h/2);
+      ctx.fillStyle = "#5d3b1a";
+      ctx.fillRect(0, h/2, w/2, h/2);
+      ctx.fillStyle = "#4b2d5d";
+      ctx.fillRect(w/2, h/2, w/2, h/2);
+    }
+  }
+
+  function zeichneNPCs() {
+    ctx.font = "12px Arial";
+    ctx.textAlign = "center";
+    for (const npc of npcs) {
+      const img = npc.img;
+      const size = 32;
+      if (img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, npc.x - size/2, npc.y - size/2, size, size);
+      } else {
+        ctx.beginPath();
+        ctx.fillStyle = npc.completed ? "#888" : "#ffdd55";
+        ctx.arc(npc.x, npc.y, 12, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#fff";
+      ctx.fillText(npc.name, npc.x, npc.y - 24);
+    }
+  }
+
+  function zeichneSpieler() {
+    const size = 40; // größere Figur
+    if (spielerImg.complete && spielerImg.naturalWidth > 0) {
+      ctx.drawImage(spielerImg, spieler.x - size/2, spieler.y - size/2, size, size);
+    } else {
+      ctx.beginPath();
+      ctx.fillStyle = "#ffffff";
+      ctx.arc(spieler.x, spieler.y, spieler.radius, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function loop() {
+    aktualisiereSpieler();
+    pruefeNPCKontakt();
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    zeichneKarte();
+    zeichneNPCs();
+    zeichneSpieler();
+
+    const bereichName = aktuellerBereichName(spieler.x, spieler.y);
+    bereichAnzeige.textContent = bereichName;
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+
+  // --------- BESTENLISTE / CSV-SPEICHERN ---------
+  const bestenliste = [];
+
+  function aktualisiereTabelle() {
+    scoreTableBody.innerHTML = "";
+    bestenliste.forEach((eintrag, index) => {
+      const tr = document.createElement("tr");
+      const tdRank = document.createElement("td");
+      const tdName = document.createElement("td");
+      const tdPunkte = document.createElement("td");
+
+      tdRank.textContent = index + 1;
+      tdName.textContent = eintrag.name;
+      tdPunkte.textContent = eintrag.punkte;
+
+      tr.appendChild(tdRank);
+      tr.appendChild(tdName);
+      tr.appendChild(tdPunkte);
+      scoreTableBody.appendChild(tr);
+    });
+  }
+
+  saveScoreBtn.addEventListener("click", () => {
+    const name = nameInput.value.trim() || "Ohne Name";
+    const eintrag = { name: name, punkte: punkte };
+    bestenliste.push(eintrag);
+    bestenliste.sort((a, b) => b.punkte - a.punkte);
+    aktualisiereTabelle();
+    nameInput.value = "";
+  });
+
+  downloadCsvBtn.addEventListener("click", () => {
+    let csv = "Name;Punkte\n";
+    bestenliste.forEach(e => {
+      csv += `${e.name};${e.punkte}\n`;
+    });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "punkte_herr_arruda.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+</script>
+
+</body>
+</html>
