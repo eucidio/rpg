@@ -42,6 +42,26 @@
       font-weight: bold;
     }
 
+    /* Musik-Buttons */
+    #musikButtons {
+      margin-bottom: 8px;
+    }
+
+    #musikButtons button {
+      padding: 5px 10px;
+      margin: 2px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #444;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #musikButtons button:hover {
+      filter: brightness(1.1);
+    }
+
     #frageBox {
       position: fixed;
       top: 50%;
@@ -149,6 +169,12 @@
     <span id="punkteAnzeige">Punkte: 0</span>
     <span id="bereichAnzeige"></span>
   </div>
+
+  <!-- Musik-Buttons -->
+  <div id="musikButtons">
+    <button onclick="musik.play()">Musik an</button>
+    <button onclick="musik.pause()">Musik aus</button>
+  </div>
 </div>
 
 <!-- Bereich zum Speichern der Punkte (Planilha) -->
@@ -187,6 +213,17 @@
 <script>
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
+
+  // --- Musik laden (ruhige Hintergrundmusik) ---
+  // Lege eine Datei "musik.mp3" in den gleichen Ordner wie diese HTML-Datei.
+  const musik = new Audio("musik.mp3");
+  musik.loop = true;     // Musik wiederholt sich
+  musik.volume = 0.4;    // Lautstärke (0 bis 1)
+
+  // Auf vielen Handys darf Musik erst nach einer Berührung starten:
+  document.body.addEventListener("click", () => {
+    if (musik.paused) musik.play();
+  });
 
   const punkteAnzeige = document.getElementById("punkteAnzeige");
   const bereichAnzeige = document.getElementById("bereichAnzeige");
